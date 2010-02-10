@@ -24,7 +24,7 @@ use LWP::Simple;
 
 sub get_html_source
 {
-	my $url = "your_url_here";
+	my $url = "http://www.deimos.fr/blocnotesinfo/index.php?title=ACL_:_Impl%C3%A9mentation_des_droits_de_type_NT_sur_Solaris";
 	
 	# Check if the link is source page or change to it
 	unless ($url =~ /&action=edit$/)
@@ -90,9 +90,10 @@ sub convert_to_confluence
 	# Convert default MediaWiki code to Confluence Code
 	foreach (@wiki_content)
 	{
+		chomp $_;
 		if ($command == 1)
 		{
-			if (/^}}.*/)
+			if (/(^|^<\/pre>|^&lt;\/pre&gt;)\}\}/g)
 			{
 				push @confluence_code, "\{tip\}\n";
 				$command=0;
@@ -105,7 +106,7 @@ sub convert_to_confluence
 		}
 		elsif ($config == 1)
 		{
-			if (/^}}.*/)
+			if (/^\}\}.*/g)
 			{
 				push @confluence_code, "\{info\}\n";
 				$config=0;
@@ -211,6 +212,8 @@ sub convert_to_confluence
 		s/(<nowiki>|<\/nowiki>|<pre>|<\/pre>|&lt;pre&gt;|&lt;\/pre&gt;|&lt;nowiki&gt;|&lt;\/nowiki&gt;)//g;
 		# Adapt for #
 		s/^#/\\#/;
+		# Change some confluence signs
+		s/\(x\)/\\(x\\)/g;
 	}
 	print @confluence_code;
 }

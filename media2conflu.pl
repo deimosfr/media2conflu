@@ -13,7 +13,7 @@
 #        NOTES:  ---
 #       AUTHOR:  Pierre Mavro (), pierre@mavro.fr
 #      COMPANY:  
-#      VERSION:  0.1
+#      VERSION:  0.2
 #      CREATED:  29/01/2010 18:33:59
 #     REVISION:  ---
 #===============================================================================
@@ -22,9 +22,10 @@ use strict;
 use warnings;
 use LWP::Simple;
 
+# Get all the html page
 sub get_html_source
 {
-	my $url = "http://www.deimos.fr/blocnotesinfo/index.php?title=ACL_:_Impl%C3%A9mentation_des_droits_de_type_NT_sur_Solaris";
+	my $url = "http://www.deimos.fr/blocnotesinfo/index.php?title=Replication_Master_to_Master";
 	
 	# Check if the link is source page or change to it
 	unless ($url =~ /&action=edit$/)
@@ -37,6 +38,7 @@ sub get_html_source
 	return $good_url;
 }
 
+# Get all wiki code from the html page
 sub only_wiki_text
 {
 	my $url = shift;
@@ -76,6 +78,7 @@ sub only_wiki_text
 	return \@wiki_content; 
 }
 
+# Convert 
 sub convert_to_confluence
 {
 	my $ref_wiki_content = shift;
@@ -86,11 +89,13 @@ sub convert_to_confluence
 	my $config=0;
 	my $command=0;
 	my $pre=0;
+	my $array=0;
+	my $array_title=0;
 
 	# Convert default MediaWiki code to Confluence Code
 	foreach (@wiki_content)
 	{
-		chomp $_;
+		# Command content
 		if ($command == 1)
 		{
 			if (/(^|^<\/pre>|^&lt;\/pre&gt;)\}\}/g)
@@ -104,6 +109,7 @@ sub convert_to_confluence
 				push @confluence_code, "$_\n";
 			}
 		}
+		# Config content
 		elsif ($config == 1)
 		{
 			if (/^\}\}.*/g)
@@ -117,11 +123,12 @@ sub convert_to_confluence
 				push @confluence_code, "$_\n";
 			}
 		}
+		# Pre content
 		elsif ($pre == 1)
 		{
-			if (/<\/pre>|&lt;\/pre&gt;/)
+			if (/<\/pre>|\&lt;\/pre\&gt;/)
 			{
-				s/<\/pre>/\{code\}/;
+				s/(<\/pre>|\&lt;\/pre\&gt;)/\{code\}/;
 				push @confluence_code, "$_\n";
 				$pre=0;
 			}
@@ -130,6 +137,47 @@ sub convert_to_confluence
 				push @confluence_code, "$_\n";
 			}
 		}
+		# Array content
+		elsif ($array == 1)
+		{
+			if (/^\!(.*)/)
+			{
+				push @confluence_code, " $1 \|\| ";
+				$array_title=1;
+			}
+			elsif (/^\{\{/)
+			{
+				if ($array_title == 1)
+				{
+					push @confluence_code, "\n";
+					$array_title=0;
+				}
+				
+				# Add spaces to |
+				s/\|/ \| /g;
+				# Remove first argument of the array and replace {{
+				s/\{\{(\S* \|)/\|/;
+				# Replace }}
+				s/\}\}/ \|/g;
+				
+				push @confluence_code, "$_\n";
+			}
+			elsif (/^\|(.*)$/)
+			{
+				push @confluence_code, " $1 \| ";
+			}
+			elsif (/^\|-/)
+			{
+				push @confluence_code, "\n\| ";
+			}
+			elsif (/\|\}/)
+			{
+				push @confluence_code, "\n\{table-plus\}\n";
+				$array_title=0;
+				$array=0;
+			}
+		}
+		# Start content and anything in 1 line
 		else
 		{
 			# h3
@@ -179,11 +227,17 @@ sub convert_to_confluence
 				$config=1;
 			}
 			# <pre>
-			elsif (/<pre>|&lt;pre&gt;/)
+			elsif (/<pre>|\&lt;pre\&gt;/)
 			{
-				s/<pre>/\{code\}/;
+				s/(<pre>|\&lt;pre\&gt;)/\{code\}/;
 				push @confluence_code, "$_\n";
 				$pre=1;
+			}
+			# Arrays
+			elsif (/\{\|/)
+			{
+				push @confluence_code, "\{table-plus\}\n\|\| ";
+				$array=1;
 			}
 			else
 			{
@@ -203,24 +257,47 @@ sub convert_to_confluence
 	foreach (@confluence_code)
 	{
 		# Replace bold signs
-		s/('''|<b>|<\/b>)/*/g;
+		{
+			my $total_bold=0;
+			# Count number of bolds
+			$total_bold++ while ($_ =~ s/(?:'''|<b>|<\/b>)/*/);
+			
+			if (($total_bold != 0) and ($total_bold % 2 ))
+			{
+				s/$/*/;
+			}
+		}
 		# Replace italic signs
-		s/(''|<i>|<\/i>)/\_/g;
-		# Adapt
+		{
+			my $total_italic=0;
+			# Count number of italic
+			$total_italic++ while ($_ =~ s/(?:''|<i>|<\/i>)/\_/);
+			
+			if (($total_italic != 0) and ($total_italic % 2 ))
+			{
+				s/$/\_/;
+			}
+		}
+		# Adapt code
 		s/^ //;
 		# Pull off <nowiki> <pre>
-		s/(<nowiki>|<\/nowiki>|<pre>|<\/pre>|&lt;pre&gt;|&lt;\/pre&gt;|&lt;nowiki&gt;|&lt;\/nowiki&gt;)//g;
+		s/(?:<nowiki>|<\/nowiki>|<pre>|<\/pre>|&lt;pre&gt;|&lt;\/pre&gt;|&lt;nowiki&gt;|&lt;\/nowiki&gt;)//g;
 		# Adapt for #
 		s/^#/\\#/;
+		# Adapt for []
+		s/(\[|\])/\\$1/g; 
+		# Adapt for <>
+		s/(?:&gt;)/>/g;
+		s/(?:&lt;)/</g;
 		# Change some confluence signs
-		s/\(x\)/\\(x\\)/g;
+		s/\(?:x\)/\\(x\\)/g;
 	}
 	print @confluence_code;
 }
 
 # Get HTML source code
-my $url = &get_html_source;
+my $url = get_html_source;
 # Parse it to get only wiki code
-my $ref_wiki_text = &only_wiki_text($url);
+my $ref_wiki_text = only_wiki_text($url);
 # Convert to confluence
-&convert_to_confluence($ref_wiki_text);
+convert_to_confluence($ref_wiki_text);

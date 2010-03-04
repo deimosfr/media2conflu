@@ -13,19 +13,43 @@
 #        NOTES:  ---
 #       AUTHOR:  Pierre Mavro (), pierre@mavro.fr
 #      COMPANY:  
-#      VERSION:  0.2
+#      VERSION:  0.3
 #      CREATED:  29/01/2010 18:33:59
 #     REVISION:  ---
 #===============================================================================
 
 use strict;
 use warnings;
+use Getopt::Long;
 use LWP::Simple;
+
+# Help
+sub help
+{
+	print "Usage : media2conflu.pl [hu]\n\n";
+	print "Options :\n";
+	print " -h, --help\n\tPrint this help screen\n";
+	print " -u\n\tSet the URL you wish convert\n";
+	print "\nExample : media2conflu.pl -u \"http://wiki_url\"\n";
+	exit 1;
+}
+
+# Get options
+sub options
+{
+	my $user_url;
+	#help if (@ARGV != 1);
+
+	# Set options
+	GetOptions( "help|h"	=> \&help,
+    			"u=s"		=> \$user_url);
+    return $user_url;
+}
 
 # Get all the html page
 sub get_html_source
 {
-	my $url = "http://www.deimos.fr/blocnotesinfo/index.php?title=Replication_Master_to_Master";
+	my $url = shift;
 	
 	# Check if the link is source page or change to it
 	unless ($url =~ /&action=edit$/)
@@ -98,7 +122,7 @@ sub convert_to_confluence
 		# Command content
 		if ($command == 1)
 		{
-			if (/(^|^<\/pre>|^&lt;\/pre&gt;)\}\}/g)
+			if (/(?:(?:&lt;|<)\/pre(&gt;|>))??\}\}/g)
 			{
 				push @confluence_code, "\{tip\}\n";
 				$command=0;
@@ -112,7 +136,7 @@ sub convert_to_confluence
 		# Config content
 		elsif ($config == 1)
 		{
-			if (/^\}\}.*/g)
+			if (/(?:(?:&lt;|<)\/?source(&gt;|>))?\}\}/g)
 			{
 				push @confluence_code, "\{info\}\n";
 				$config=0;
@@ -126,9 +150,9 @@ sub convert_to_confluence
 		# Pre content
 		elsif ($pre == 1)
 		{
-			if (/<\/pre>|\&lt;\/pre\&gt;/)
+			if (/(?:(?:&lt;|<)\/pre(&gt;|>))/)
 			{
-				s/(<\/pre>|\&lt;\/pre\&gt;)/\{code\}/;
+				s/(?:(?:&lt;|<)\/pre(&gt;|>))/\{code\}/;
 				push @confluence_code, "$_\n";
 				$pre=0;
 			}
@@ -281,7 +305,7 @@ sub convert_to_confluence
 		# Adapt code
 		s/^ //;
 		# Pull off <nowiki> <pre>
-		s/(?:<nowiki>|<\/nowiki>|<pre>|<\/pre>|&lt;pre&gt;|&lt;\/pre&gt;|&lt;nowiki&gt;|&lt;\/nowiki&gt;)//g;
+		s/(?:<|&lt;)\/?(?:nowiki|pre)(?:>|&gt;)//g;
 		# Adapt for #
 		s/^#/\\#/;
 		# Adapt for []
@@ -295,8 +319,10 @@ sub convert_to_confluence
 	print @confluence_code;
 }
 
+# Look options
+my $user_url = options;
 # Get HTML source code
-my $url = get_html_source;
+my $url = get_html_source($user_url);
 # Parse it to get only wiki code
 my $ref_wiki_text = only_wiki_text($url);
 # Convert to confluence

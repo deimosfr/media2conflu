@@ -13,7 +13,7 @@
 #        NOTES:  ---
 #       AUTHOR:  Pierre Mavro (), pierre@mavro.fr
 #      COMPANY:  
-#      VERSION:  0.3
+#      VERSION:  0.3.1
 #      CREATED:  29/01/2010 18:33:59
 #     REVISION:  ---
 #===============================================================================
@@ -58,7 +58,7 @@ sub get_html_source
 	}
 
 	# Now get HTML source code
-	my $good_url = get($url);
+	my $good_url = get($url) or die "Couldn't get $url\nYou may need to check your connectivity and proxy setting : $!\n";
 	return $good_url;
 }
 
@@ -107,7 +107,7 @@ sub convert_to_confluence
 {
 	my $ref_wiki_content = shift;
 	my @wiki_content = @$ref_wiki_content;
-	my @confluence_code;
+	my (@confluence_code,$current_line);
 	
 	my $code=0;
 	my $config=0;
@@ -129,8 +129,8 @@ sub convert_to_confluence
 			}
 			else
 			{
-				s/-/\\-/g;
-				push @confluence_code, "$_\n";
+				$current_line = escape_special_chars($_);
+				push @confluence_code, "$current_line\n";
 			}
 		}
 		# Config content
@@ -143,8 +143,8 @@ sub convert_to_confluence
 			}
 			else
 			{
-				s/-/\\-/g;
-				push @confluence_code, "$_\n";
+				$current_line = escape_special_chars($_);
+				push @confluence_code, "$current_line\n";
 			}
 		}
 		# Pre content
@@ -270,14 +270,17 @@ sub convert_to_confluence
 		}
 	}
 
-	sub pulloff_less
+	sub escape_special_chars
 	{
 		my $line = shift;
-		$line = s/!(^-)/\\-/;
+		# Replace - by \-
+		$line =~ s/\-/\\-/g;
+		# Replace * by \*
+		$line =~ s/\*/\\*/g;
 		return $line;
 	}
 
-	# Mettre - en \-
+	# Replace all others mediawiki chars to confluence
 	foreach (@confluence_code)
 	{
 		# Replace bold signs

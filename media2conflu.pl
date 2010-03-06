@@ -37,8 +37,8 @@ sub help
 # Get options
 sub options
 {
+	help if (@ARGV != 2);
 	my $user_url;
-	#help if (@ARGV != 1);
 
 	# Set options
 	GetOptions( "help|h"	=> \&help,

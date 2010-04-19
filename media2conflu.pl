@@ -13,7 +13,7 @@
 #        NOTES:  ---
 #       AUTHOR:  Pierre Mavro (), pierre@mavro.fr
 #      COMPANY:  
-#      VERSION:  0.3.1
+#      VERSION:  0.3.2
 #      CREATED:  29/01/2010 18:33:59
 #     REVISION:  ---
 #===============================================================================
@@ -50,7 +50,7 @@ sub options
 sub get_html_source
 {
 	my $url = shift;
-	
+
 	# Check if the link is source page or change to it
 	unless ($url =~ /&action=edit$/)
 	{
@@ -58,6 +58,7 @@ sub get_html_source
 	}
 
 	# Now get HTML source code
+	binmode STDOUT, ":utf8";
 	my $good_url = get($url) or die "Couldn't get $url\nYou may need to check your connectivity and proxy setting : $!\n";
 	return $good_url;
 }
@@ -136,7 +137,7 @@ sub convert_to_confluence
 		# Config content
 		elsif ($config == 1)
 		{
-			if (/(?:(?:&lt;|<)\/?source(&gt;|>))?\}\}/g)
+			if (/(?:(?:&lt;|<)\/?(?:source|syntaxhighlight)(&gt;|>))?\}\}/g)
 			{
 				push @confluence_code, "\{info\}\n";
 				$config=0;
@@ -277,6 +278,9 @@ sub convert_to_confluence
 		$line =~ s/\-/\\-/g;
 		# Replace * by \*
 		$line =~ s/\*/\\*/g;
+		# Replace {} by \{\}
+		$line =~ s/\{/\\{/g;
+		$line =~ s/\}/\\}/g;
 		return $line;
 	}
 
@@ -309,6 +313,8 @@ sub convert_to_confluence
 		s/^ //;
 		# Pull off <nowiki> <pre>
 		s/(?:<|&lt;)\/?(?:nowiki|pre)(?:>|&gt;)//g;
+		# Replace <br /> by \n
+		s/(?:<|&lt;)br \/(?:>|&gt;)//g;
 		# Adapt for #
 		s/^#/\\#/;
 		# Adapt for []
